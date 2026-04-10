@@ -1,0 +1,175 @@
+#Requires -RunAsAdministrator
+#Requires -Version 5.1
+
+<#
+.SYNOPSIS
+    Verifies that all prerequisites for building the OSDCloud WinRE boot image are installed and configured correctly.
+
+.DESCRIPTION
+    Runs a pass/fail check for every required component. Safe to run at any time - makes no changes.
+    Use this after running Install-Prerequisites.ps1 or before starting any build.
+
+.EXAMPLE
+    .\Setup\Verify-Environment.ps1
+
+.NOTES
+    Author: OSDCloud Project
+    Repo:   https://github.com/Codux/CoduxOSDCloud
+#>
+
+[CmdletBinding()]
+param ()
+
+function Write-Status {
+    param(
+        [string]$Message,
+        [ValidateSet('PASS','FAIL','WARN','INFO')]
+        [string]$Status = 'INFO'
+    )
+    $color = switch ($Status) {
+        'PASS' { 'Green' }
+        'FAIL' { 'Red' }
+        'WARN' { 'Yellow' }
+        'INFO' { 'Cyan' }
+        default { 'White' }
+    }
+    Write-Host "[$Status] $Message" -ForegroundColor $color
+}
+
+Write-Host ''
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host '  OSDCloud Environment Verification' -ForegroundColor Cyan
+Write-Host '============================================================' -ForegroundColor Cyan
+Write-Host ''
+
+$results = @()
+$anyFail = $false
+
+# Helper
+function Add-Result {
+    param([string]$Check, [bool]$Pass, [string]$Detail)
+    $script:results += [PSCustomObject]@{
+        Check  = $Check
+        Result = if ($Pass) { 'PASS' } else { 'FAIL' }
+        Detail = $Detail
+    }
+    if (-not $Pass) { $script:anyFail = $true }
+}
+
+# 1. Administrator
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+Add-Result 'Running as Administrator' $isAdmin $(if ($isAdmin) { 'Yes' } else { 'Re-run as Administrator' })
+
+# 2. PowerShell version
+$psVersion = $PSVersionTable.PSVersion
+$ps5ok = $psVersion.Major -ge 5
+Add-Result 'PowerShell 5.1+' $ps5ok $psVersion.ToString()
+
+# 3. PowerShell 7 in PATH
+$ps7 = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+Add-Result 'PowerShell 7 (pwsh.exe)' ($null -ne $ps7) $(if ($ps7) { $ps7.Source } else { 'Not found in PATH' })
+
+# 4. TLS 1.2 - check registry so it survives session restarts
+$tlsReg64 = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\.NETFramework\v4.0.30319' -Name SchUseStrongCrypto -ErrorAction SilentlyContinue).SchUseStrongCrypto -eq 1
+$tlsReg32 = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319' -Name SchUseStrongCrypto -ErrorAction SilentlyContinue).SchUseStrongCrypto -eq 1
+$tlsOk = $tlsReg64 -and $tlsReg32
+Add-Result 'TLS 1.2 Persisted' $tlsOk $(if ($tlsOk) { 'Registry keys set (SchUseStrongCrypto=1)' } else { 'Not persisted - run Install-Prerequisites.ps1' })
+
+# 5. NuGet provider (minimum 2.8.5.201 required by PowerShellGet)
+$nuget = Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+$nugetOk = $null -ne $nuget -and $nuget.Version -ge [Version]'2.8.5.201'
+Add-Result 'NuGet Package Provider' $nugetOk $(if ($nugetOk) { $nuget.Version.ToString() } elseif ($nuget) { "v$($nuget.Version) - too old, minimum 2.8.5.201 required" } else { 'Not installed - run Install-Prerequisites.ps1' })
+
+# 6. PSGallery trusted
+$gallery = Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue
+$galleryTrusted = $gallery -and $gallery.InstallationPolicy -eq 'Trusted'
+Add-Result 'PSGallery Trusted' $galleryTrusted $(if ($galleryTrusted) { 'Trusted' } else { 'Not trusted' })
+
+# 7. Windows ADK
+$adkRegPath = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots'
+$adkRoot = $null
+if (Test-Path $adkRegPath) {
+    $adkRoot = (Get-ItemProperty $adkRegPath -ErrorAction SilentlyContinue).KitsRoot10
+    if ($adkRoot) { $adkRoot = $adkRoot.TrimEnd('\') }
+}
+# Fallback to known default locations if registry path missing or invalid
+if (-not $adkRoot -or -not (Test-Path $adkRoot)) {
+    $adkRoot = @(
+        "${env:ProgramFiles(x86)}\Windows Kits\10",
+        "$env:ProgramFiles\Windows Kits\10"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+$adkOk = $null -ne $adkRoot -and (Test-Path $adkRoot)
+$adkDetail = if ($adkOk) { $adkRoot } else { 'Not installed - see docs/prerequisites.md' }
+Add-Result 'Windows ADK' $adkOk $adkDetail
+
+# 8. Windows PE Add-on
+$winPEOk = $false
+$winPEDetail = 'Not installed - required for OSDCloud template build'
+if ($adkOk) {
+    $winPERoot = Join-Path $adkRoot 'Assessment and Deployment Kit\Windows Preinstallation Environment'
+    $winPEOk = Test-Path $winPERoot
+    $winPEDetail = if ($winPEOk) { $winPERoot } else { 'ADK found but WinPE add-on missing - install adkwinpesetup.exe' }
+}
+Add-Result 'Windows PE Add-on' $winPEOk $winPEDetail
+
+# 8b. ADK version matches OS (mismatch causes 0x800f081e CAB errors during template build)
+if ($adkOk) {
+    $osVersion = (Get-CimInstance Win32_OperatingSystem).Version  # e.g. 10.0.19045.x for Win10 22H2
+    $osBuild = ($osVersion -split '\.')[2]
+    # Read ADK version from a known binary - registry has no version property
+    $adkBinary = @(
+        (Join-Path $adkRoot 'Assessment and Deployment Kit\Deployment Tools\amd64\Dism\dism.exe'),
+        (Join-Path $adkRoot 'Assessment and Deployment Kit\Deployment Tools\x86\Dism\dism.exe')
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($adkBinary) {
+        $adkFileVersion = (Get-Item $adkBinary).VersionInfo.FileVersion  # e.g. 10.1.26100.xxxx
+        $adkBuild = ($adkFileVersion -split '[\.\,]')[2]
+        # Windows 11 24H2 ADK build is 26100. ADK build must match OS build.
+        $win11_24H2Build = '26100'
+        $versionMatch = $adkBuild -eq $win11_24H2Build -and $osBuild -eq $win11_24H2Build
+        Add-Result 'ADK Version Match' $versionMatch $(
+            if ($versionMatch) { "ADK build $adkBuild matches OS build $osBuild (Win11 24H2)" }
+            else { "OS build $osBuild vs ADK build $adkBuild - need Win11 24H2 ADK (build 26100), mismatch causes WinPE CAB errors." }
+        )
+    } else {
+        Add-Result 'ADK Version Match' $false "ADK dism.exe not found under $adkRoot - Deployment Tools may not be installed"
+    }
+}
+
+# 9. OSD module
+$osd = Get-Module -ListAvailable OSD -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1
+Add-Result 'OSD Module' ($null -ne $osd) $(if ($osd) { "v$($osd.Version)" } else { 'Not installed - run Install-Prerequisites.ps1' })
+
+# 10. OSDCloud module
+$osdCloud = Get-Module -ListAvailable OSDCloud -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1
+Add-Result 'OSDCloud Module' ($null -ne $osdCloud) $(if ($osdCloud) { "v$($osdCloud.Version)" } else { 'Not installed - run Install-Prerequisites.ps1' })
+
+# 11. Internet connectivity
+Write-Verbose 'Testing internet connectivity...'
+try {
+    $netTest = Test-NetConnection -ComputerName 'www.microsoft.com' -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    Add-Result 'Internet Connectivity' $netTest $(if ($netTest) { 'Connected to microsoft.com' } else { 'No connection - required for module downloads' })
+} catch {
+    Add-Result 'Internet Connectivity' $false "Error: $_"
+}
+
+# 12. VERSION file
+$versionFile = Join-Path $PSScriptRoot '..\VERSION'
+$versionOk = Test-Path $versionFile
+$versionContent = if ($versionOk) { (Get-Content $versionFile -Raw).Trim() } else { 'File not found' }
+Add-Result 'VERSION File' $versionOk $versionContent
+
+# ---------------------------------------------------------------------------
+# Print results
+# ---------------------------------------------------------------------------
+Write-Host ''
+$results | Format-Table -Property Check, Result, Detail -AutoSize
+
+if ($anyFail) {
+    Write-Status 'One or more checks failed. Run Setup\Install-Prerequisites.ps1 to resolve.' -Status 'WARN'
+    exit 1
+} else {
+    Write-Status 'All checks passed. Environment is ready.' -Status 'PASS'
+    exit 0
+}
