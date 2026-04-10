@@ -3,6 +3,8 @@
 A Codux-maintained Windows 11 deployment toolkit powered by OSDCloud V2.
 Plug in a USB, boot the machine, and Windows 11 installs automatically over WiFi.
 
+**Pre-installed driver packs:** Intel WiFi, Intel Ethernet, Dell, HP, Lenovo, Surface
+
 ---
 
 ## What You Need

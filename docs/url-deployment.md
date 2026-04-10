@@ -62,17 +62,17 @@ Machine reboots into Windows
 
 ## Switching Deployment Modes
 
-Three deployment modes are available without rebuilding the USB:
+Three deployment modes are available without rebuilding the ISO:
 
 | Mode | What to do |
 |------|-----------|
 | **Standard** (interactive) | `Deploy-Windows11.ps1` - prompts for disk wipe confirmation |
 | **ZTI** (silent) | Edit `Deploy-Windows11.ps1` to pass `-ZTI` and upload to blob |
-| **GUI** (operator selects OS) | Re-stamp USB with `Start-OSDCloudGUI.ps1` URL (requires one USB rebuild) |
+| **GUI** (operator selects OS) | Re-stamp the workspace with `Start-OSDCloudGUI.ps1` URL and rebuild the ISO |
 
 ### Switching to the GUI variant
 
-Re-stamp the workspace and regenerate the ISO:
+Re-stamp the workspace, regenerate the ISO, and write it to USB with Rufus:
 
 ```powershell
 $GUIURL = 'https://codostpublicassets.blob.core.windows.net/osdcloud/Start-OSDCloudGUI.ps1'

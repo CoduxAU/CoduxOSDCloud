@@ -19,9 +19,6 @@
 .PARAMETER OutputPath
     Directory where ISOs will be saved. Default: C:\OSDCloud\ISO
 
-.PARAMETER VersionFilePath
-    Path to the VERSION file. Default: auto-detected relative to this script.
-
 .EXAMPLE
     .\BootImage\New-OSDCloudISO.ps1
 
@@ -40,10 +37,7 @@ param (
     [string]$WorkspacePath = 'C:\OSDCloud\WinRE-WiFi',
 
     [Parameter()]
-    [string]$OutputPath = 'C:\OSDCloud\ISO',
-
-    [Parameter()]
-    [string]$VersionFilePath
+    [string]$OutputPath = 'C:\OSDCloud\ISO'
 )
 
 function Write-Status {
@@ -70,21 +64,6 @@ function Write-Log {
 }
 
 Write-Log 'New-OSDCloudISO.ps1 started'
-
-# --- Read VERSION ---
-if (-not $VersionFilePath) {
-    $VersionFilePath = Join-Path $PSScriptRoot '..\VERSION'
-}
-
-$version = '0.0.0'
-if (Test-Path $VersionFilePath) {
-    $version = (Get-Content $VersionFilePath -Raw).Trim()
-    Write-Status "ISO version: $version (from VERSION file)" -Status 'INFO'
-    Write-Log "Version: $version"
-} else {
-    Write-Status "VERSION file not found at $VersionFilePath - using 0.0.0" -Status 'WARN'
-    Write-Log "WARN: VERSION file not found, defaulting to 0.0.0"
-}
 
 # --- Validate workspace ---
 if (-not (Test-Path $WorkspacePath)) {
@@ -188,8 +167,6 @@ Write-Status 'Next steps:' -Status 'INFO'
 Write-Host '  1. Upload CoduxOSDCloud.iso to Azure Blob Storage' -ForegroundColor White
 Write-Host '     https://codostpublicassets.blob.core.windows.net/osdcloud/CoduxOSDCloud.iso' -ForegroundColor Gray
 Write-Host '  2. Verify the upload is accessible at that URL' -ForegroundColor White
-Write-Host "  3. Update VERSION file to: $version" -ForegroundColor White
-Write-Host '  4. Add entry to CHANGELOG.md and push' -ForegroundColor White
 Write-Host ''
 
 Write-Log 'New-OSDCloudISO.ps1 completed'

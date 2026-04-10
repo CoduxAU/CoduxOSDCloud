@@ -12,8 +12,7 @@
       3. Rebuilds the WinRE boot image (calls Build-WinREBootImage.ps1)
       4. Regenerates the ISO (calls New-OSDCloudISO.ps1)
       5. Outputs ISO location and SHA256 hash
-      6. Prompts to update VERSION file with the new version number
-      7. Reminds repo owner to upload the new ISO to Azure Files
+      6. Reminds repo owner to upload the new ISO to Azure Blob Storage
 
     Run this after: OSD/OSDCloud module updates, Windows ADK updates,
     or any time the boot image itself needs to change (driver additions, etc.).
@@ -153,35 +152,14 @@ try {
     exit 1
 }
 
-# --- Version bump prompt ---
-$versionFile = Join-Path $scriptRoot '..\VERSION'
-$currentVersion = if (Test-Path $versionFile) { (Get-Content $versionFile -Raw).Trim() } else { 'unknown' }
-
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Green
 Write-Host '  Boot Image Refresh Complete' -ForegroundColor Green
 Write-Host '============================================================' -ForegroundColor Green
 Write-Host ''
-Write-Status "Current VERSION: $currentVersion" -Status 'INFO'
-Write-Host ''
-$newVersion = Read-Host "Enter new version (leave blank to keep '$currentVersion')"
-
-if ($newVersion -and $newVersion -ne $currentVersion) {
-    if ($newVersion -match '^\d+\.\d+\.\d+$') {
-        Set-Content -Path $versionFile -Value $newVersion
-        Write-Status "VERSION updated to: $newVersion" -Status 'OK'
-        Write-Log "VERSION updated: $currentVersion -> $newVersion"
-    } else {
-        Write-Status "Invalid version format '$newVersion' - VERSION not changed. Use MAJOR.MINOR.PATCH." -Status 'WARN'
-    }
-}
-
-Write-Host ''
 Write-Status 'NEXT STEPS:' -Status 'WARN'
-Write-Host "  1. Upload the new ISO from $IsoOutputPath to Azure Files" -ForegroundColor White
-Write-Host '  2. Update CHANGELOG.md with the new version entry' -ForegroundColor White
-Write-Host '  3. Commit VERSION and CHANGELOG.md, then push to main' -ForegroundColor White
-Write-Host '  4. Verify https://codostpublicassets.blob.core.windows.net/osdcloud/CoduxOSDCloud.iso downloads' -ForegroundColor White
+Write-Host "  1. Upload the new ISO from $IsoOutputPath to Azure Blob Storage" -ForegroundColor White
+Write-Host '  2. Verify https://codostpublicassets.blob.core.windows.net/osdcloud/CoduxOSDCloud.iso downloads' -ForegroundColor White
 Write-Host ''
 Write-Status "Log saved to: $logFile" -Status 'INFO'
 Write-Log 'Refresh-BootImage.ps1 completed'

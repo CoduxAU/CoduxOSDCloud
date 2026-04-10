@@ -406,8 +406,8 @@ Write-Host '  1. Run BootImage\New-OSDCloudISO.ps1 to generate the ISO' -Foregro
 Write-Host '  2. Upload the ISO to Azure Blob Storage' -ForegroundColor White
 Write-Host '  3. Update VERSION and CHANGELOG.md, then push' -ForegroundColor White
 Write-Host ''
-Write-Status 'REMINDER: The USB is now static. To change the deployment, edit' -Status 'WARN'
-Write-Status "          Deployment\Deploy-Windows11.ps1 and push to main." -Status 'WARN'
+Write-Status 'REMINDER: The ISO is now static. To change the deployment, edit' -Status 'WARN'
+Write-Status "          Deployment\Deploy-Windows11.ps1 and upload to Azure Blob Storage." -Status 'WARN'
 Write-Host ''
 
 Write-Log 'Build-WinREBootImage.ps1 completed successfully'

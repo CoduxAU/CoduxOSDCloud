@@ -22,7 +22,7 @@ Edit-OSDCloudWinPE -StartURL 'https://codostpublicassets.blob.core.windows.net/o
                    -WorkspacePath "C:\OSDCloud\WinRE-WiFi"
 ```
 
-Then regenerate the ISO and USB.
+Then regenerate the ISO and write it to USB with Rufus.
 
 ## ZTI (Zero Touch) Mode
 
