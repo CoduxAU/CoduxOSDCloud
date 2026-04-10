@@ -214,7 +214,7 @@ if (`$LASTEXITCODE -and `$LASTEXITCODE -ne 0) { exit 2 }
 
 # Step 3 - Inject WiFi drivers and stamp deploy URL
 Write-Host '[INFO] Injecting WiFi drivers and stamping deployment URL...' -ForegroundColor Cyan
-Edit-OSDCloudWinPE -WorkspacePath '$WorkspacePath' -StartURL '$DeployURL' -CloudDriver WiFi -Verbose
+Edit-OSDCloudWinPE -WorkspacePath '$WorkspacePath' -StartURL '$DeployURL' -CloudDriver WiFi,Ethernet,Dell,HP,Lenovo,Surface -Verbose
 if (`$LASTEXITCODE -and `$LASTEXITCODE -ne 0) { exit 3 }
 "@
 

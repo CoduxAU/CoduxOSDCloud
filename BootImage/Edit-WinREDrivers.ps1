@@ -3,53 +3,39 @@
 
 <#
 .SYNOPSIS
-    Injects supplemental drivers into an existing OSDCloud WinRE workspace.
+    Injects custom drivers from a local folder into an existing OSDCloud WinRE workspace.
 
 .DESCRIPTION
-    Use this script when you need drivers beyond the built-in WiFi CloudDriver - for example,
-    vendor-specific storage or NIC drivers for hardware the CloudDriver set does not cover.
+    Use this script for hardware with drivers not covered by the standard CloudDriver packs
+    (e.g. Realtek or MediaTek WiFi adapters, specialist storage controllers).
 
-    Intel WiFi drivers are already handled by Build-WinREBootImage.ps1 via -CloudDriver WiFi.
-    This script is for supplemental drivers only.
+    All standard vendor CloudDrivers (Dell, HP, Lenovo, Surface, WiFi, Ethernet) are already
+    injected by Build-WinREBootImage.ps1. This script is for custom local drivers only.
+
+    Run this after Build-WinREBootImage.ps1 and before New-OSDCloudISO.ps1.
+
+.PARAMETER DriverPath
+    Path to a local folder containing INF/driver files to inject.
 
 .PARAMETER WorkspacePath
     Path to the existing OSDCloud WinRE workspace. Default: C:\OSDCloud\WinRE-WiFi
 
-.PARAMETER CloudDrivers
-    Array of CloudDriver sources to add. Options: Dell, HP, Lenovo, Surface, WiFi, Ethernet.
-    Example: @('Dell','HP','Surface')
-
-.PARAMETER HardwareID
-    Optional specific hardware ID to target from the Microsoft Update Catalog.
-
-.PARAMETER DriverPath
-    Optional path to a local folder containing INF/driver files to inject.
-
 .EXAMPLE
-    .\BootImage\Edit-WinREDrivers.ps1 -CloudDrivers 'Dell','HP','Surface'
-
-.EXAMPLE
-    .\BootImage\Edit-WinREDrivers.ps1 -DriverPath 'C:\Drivers\NIC'
+    .\BootImage\Edit-WinREDrivers.ps1 -DriverPath 'C:\Drivers\RealtekWiFi'
 
 .NOTES
     Author: OSDCloud Project
     Repo:   https://github.com/Codux/CoduxOSDCloud
-    Requires: OSDCloud module, existing WinRE workspace
+    Requires: OSDCloud module, existing WinRE workspace (run Build-WinREBootImage.ps1 first)
 #>
 
 [CmdletBinding()]
 param (
-    [Parameter()]
-    [string]$WorkspacePath = 'C:\OSDCloud\WinRE-WiFi',
+    [Parameter(Mandatory)]
+    [string]$DriverPath,
 
     [Parameter()]
-    [string[]]$CloudDrivers,
-
-    [Parameter()]
-    [string]$HardwareID,
-
-    [Parameter()]
-    [string]$DriverPath
+    [string]$WorkspacePath = 'C:\OSDCloud\WinRE-WiFi'
 )
 
 function Write-Status {
@@ -77,14 +63,17 @@ function Write-Log {
 
 Write-Log 'Edit-WinREDrivers.ps1 started'
 
-# Validate workspace
 if (-not (Test-Path $WorkspacePath)) {
     Write-Status "Workspace not found: $WorkspacePath" -Status 'ERROR'
     Write-Status 'Run BootImage\Build-WinREBootImage.ps1 first.' -Status 'ERROR'
     exit 1
 }
 
-# Load module
+if (-not (Test-Path $DriverPath)) {
+    Write-Status "DriverPath not found: $DriverPath" -Status 'ERROR'
+    exit 1
+}
+
 try {
     Import-Module OSDCloud -Force -ErrorAction Stop
     Write-Status "OSDCloud module loaded: v$((Get-Module OSDCloud).Version)" -Status 'OK'
@@ -93,45 +82,10 @@ try {
     exit 1
 }
 
-# Validate that at least one driver source was specified
-if (-not $CloudDrivers -and -not $HardwareID -and -not $DriverPath) {
-    Write-Status 'No driver source specified. Provide -CloudDrivers, -HardwareID, or -DriverPath.' -Status 'WARN'
-    Write-Host ''
-    Write-Host '  Examples:' -ForegroundColor White
-    Write-Host "    .\BootImage\Edit-WinREDrivers.ps1 -CloudDrivers 'Dell','HP'" -ForegroundColor Gray
-    Write-Host "    .\BootImage\Edit-WinREDrivers.ps1 -DriverPath 'C:\Drivers\NIC'" -ForegroundColor Gray
-    exit 0
-}
-
 try {
-    $editParams = @{
-        WorkspacePath = $WorkspacePath
-        Verbose       = $true
-    }
-
-    if ($CloudDrivers) {
-        Write-Status "Adding CloudDrivers: $($CloudDrivers -join ', ')" -Status 'INFO'
-        Write-Log "CloudDrivers: $($CloudDrivers -join ', ')"
-        $editParams['CloudDriver'] = $CloudDrivers
-    }
-
-    if ($HardwareID) {
-        Write-Status "Targeting HardwareID: $HardwareID" -Status 'INFO'
-        Write-Log "HardwareID: $HardwareID"
-        $editParams['HardwareID'] = $HardwareID
-    }
-
-    if ($DriverPath) {
-        if (-not (Test-Path $DriverPath)) {
-            Write-Status "DriverPath not found: $DriverPath" -Status 'ERROR'
-            exit 1
-        }
-        Write-Status "Injecting local drivers from: $DriverPath" -Status 'INFO'
-        Write-Log "DriverPath: $DriverPath"
-        $editParams['DriverPath'] = $DriverPath
-    }
-
-    Edit-OSDCloudWinPE @editParams
+    Write-Status "Injecting drivers from: $DriverPath" -Status 'INFO'
+    Write-Log "DriverPath: $DriverPath"
+    Edit-OSDCloudWinPE -WorkspacePath $WorkspacePath -DriverPath $DriverPath -Verbose
     Write-Status 'Driver injection complete.' -Status 'OK'
     Write-Log 'Driver injection completed'
 } catch {
