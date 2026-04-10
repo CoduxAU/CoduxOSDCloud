@@ -15,8 +15,7 @@
       - PowerShell 7 in PATH
       - OSDCloud workspace paths
       - Internet connectivity to Microsoft Update Catalog
-      - Current VERSION file contents
-      - Build machine OS (Windows 10 recommended)
+      - Build machine OS (Windows 11 24H2 required)
 
 .EXAMPLE
     .\Maintenance\Test-OSDEnvironment.ps1
@@ -145,12 +144,6 @@ $isoDetail = if ($isoOk -and $isoFiles.Count -gt 0) {
     'Not found - ISOs will be created here by New-OSDCloudISO.ps1'
 }
 Add-Check 'ISO Output Directory' (if ($isoOk -and $isoFiles.Count -gt 0) { 'PASS' } else { 'WARN' }) $isoDetail
-
-# 12. VERSION file
-$versionFile = Join-Path $PSScriptRoot '..\VERSION'
-$versionOk = Test-Path $versionFile
-$versionContent = if ($versionOk) { (Get-Content $versionFile -Raw -ErrorAction SilentlyContinue).Trim() } else { 'File not found' }
-Add-Check 'VERSION File' (if ($versionOk) { 'PASS' } else { 'WARN' }) $versionContent
 
 # ---------------------------------------------------------------------------
 # Output

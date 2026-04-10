@@ -154,12 +154,6 @@ try {
     Add-Result 'Internet Connectivity' $false "Error: $_"
 }
 
-# 12. VERSION file
-$versionFile = Join-Path $PSScriptRoot '..\VERSION'
-$versionOk = Test-Path $versionFile
-$versionContent = if ($versionOk) { (Get-Content $versionFile -Raw).Trim() } else { 'File not found' }
-Add-Result 'VERSION File' $versionOk $versionContent
-
 # ---------------------------------------------------------------------------
 # Print results
 # ---------------------------------------------------------------------------
